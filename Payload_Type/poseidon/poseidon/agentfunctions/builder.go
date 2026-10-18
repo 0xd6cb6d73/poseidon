@@ -211,6 +211,12 @@ func build(ctx context.Context, payloadBuildMsg agentstructs.PayloadBuildMessage
 		payloadBuildResponse.BuildStdErr = "Failed to build - must select at least one C2 Profile"
 		return payloadBuildResponse
 	}
+	providerSelections, err := validateProviderBuild(payloadBuildMsg)
+	if err != nil {
+		payloadBuildResponse.Success = false
+		payloadBuildResponse.BuildStdErr = err.Error()
+		return payloadBuildResponse
+	}
 	macOSVersion := "10.12"
 	targetOs := "linux"
 	if payloadBuildMsg.SelectedOS == "macOS" {
@@ -300,7 +306,9 @@ func build(ctx context.Context, payloadBuildMsg agentstructs.PayloadBuildMessage
 					payloadBuildResponse.BuildStdErr = "Key error: " + key + "\n" + err.Error()
 					return payloadBuildResponse
 				}
-				initialConfig[key] = cryptoVal.EncKey
+				if providerSelections[index] == nil {
+					initialConfig[key] = cryptoVal.EncKey
+				}
 				//ldflags += fmt.Sprintf(" -X '%s.%s_%s=%s'", poseidon_repo_profile, payloadBuildMsg.C2Profiles[index].Name, key, cryptoVal.EncKey)
 			} else if key == "headers" {
 				headers, err := payloadBuildMsg.C2Profiles[index].GetDictionaryArg(key)
@@ -409,6 +417,9 @@ func build(ctx context.Context, payloadBuildMsg agentstructs.PayloadBuildMessage
 
 			}
 		}
+		if selection := providerSelections[index]; selection != nil {
+			selection.configureProfile(initialConfig)
+		}
 		initialConfigBytes, err := json.Marshal(initialConfig)
 		if err != nil {
 			payloadBuildResponse.Success = false
@@ -462,6 +473,13 @@ func build(ctx context.Context, payloadBuildMsg agentstructs.PayloadBuildMessage
 	for index, _ := range payloadBuildMsg.C2Profiles {
 		tags = append(tags, payloadBuildMsg.C2Profiles[index].Name)
 	}
+	providerTags, providerEnv, err := prepareProviderBuild(ctx, providerSelections, len(payloadBuildMsg.C2Profiles), BuildTarget{OS: targetOs, Arch: goarch})
+	if err != nil {
+		payloadBuildResponse.Success = false
+		payloadBuildResponse.BuildStdErr = err.Error()
+		return payloadBuildResponse
+	}
+	tags = append(tags, providerTags...)
 	if mode == "c-shared" {
 		tags = append(tags, "shared")
 	}
@@ -487,6 +505,7 @@ func build(ctx context.Context, payloadBuildMsg agentstructs.PayloadBuildMessage
 			commandEnv = append(commandEnv, "CC=x86_64-linux-gnu-gcc")
 		}
 	}
+	commandEnv = append(commandEnv, providerEnv...)
 	command += "GOGARBLE=* "
 	commandEnv = append(commandEnv, "GOGARBLE=*")
 	commandExec := []string{"go", "build"}

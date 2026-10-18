@@ -4,9 +4,34 @@
   <img alt="Poseidon Logo" src="documentation-payload/poseidon/poseidon.svg" height="30%" width="30%">
 </p>
 
-Poseidon is a Golang agent that compiles into Linux and macOS x64 executables.
+Poseidon is a Golang agent that compiles into Linux and macOS executables.
 This Poseidon instance supports Mythic 3.0.0 and will be updated as necessary.
 It does not support Mythic 2.3 and lower.
+
+## Optional crypto providers
+
+With Mythic's external crypto-provider API, select
+`provider:<service>:<scheme>` in the HTTP or TCP profile's `AESPSK` parameter.
+The builder selects the implementation's Go build tag and embeds its scheme
+and opaque provider configuration into the profile's compile-time settings.
+
+Implementations register a session factory from a build-tagged file in
+`pkg/cryptoprovider`, alongside a provider-specific builder registration in
+`poseidon/agentfunctions`. Adding a provider does not require transport changes.
+
+Beaconcrypt supports Linux `AMD_x64` and `ARM_x64` executables (`mode=default`)
+with one HTTP or TCP profile and `static` and `garble` disabled. Linux amd64 and
+arm64 payload containers include matching, SHA256-verified GitHub release libraries
+for both targets. Manual builds need Go, curl and the target's C compiler; run
+`Payload_Type/poseidon/scripts/build-native.sh linux amd64` or `linux arm64`.
+Native archives use separate Rust-target subdirectories under
+`POSEIDON_BEACONCRYPT_NATIVE_TARGET` (default `.build/beaconcrypt-native-target`),
+so one target cannot reuse the other's cached library. Release filenames and
+digests are pinned in `scripts/beaconcrypt-releases.txt` alongside the helper;
+module version changes require a matching manifest entry. Verified cached archives
+work offline. Rust and Cap'n Proto are not required. When replacing a source-built
+archive at the same module version, clear Go's build cache once (`go clean -cache`)
+so manual builds relink the downloaded library.
 
 ## Poseidon's Icon
 
