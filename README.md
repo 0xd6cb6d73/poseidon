@@ -19,11 +19,14 @@ Implementations register a session factory from a build-tagged file in
 `pkg/cryptoprovider`, alongside a provider-specific builder registration in
 `poseidon/agentfunctions`. Adding a provider does not require transport changes.
 
-Beaconcrypt supports Linux `AMD_x64` and `ARM_x64` executables (`mode=default`)
-with one HTTP or TCP profile and `static` and `garble` disabled. Linux amd64 and
-arm64 payload containers include matching, SHA256-verified GitHub release libraries
-for both targets. Manual builds need Go, curl and the target's C compiler; run
-`Payload_Type/poseidon/scripts/build-native.sh linux amd64` or `linux arm64`.
+Beaconcrypt v0.6.0 supports Linux and macOS `AMD_x64` and `ARM_x64` executables
+(`mode=default`) with one HTTP or TCP profile and `static` and `garble` disabled.
+Linux amd64 and arm64 payload containers include matching, SHA256-verified GitHub
+release libraries for all four targets. The macOS release archives require
+macOS 15.5 on Intel or macOS 26.5 on Apple Silicon; the builder sets matching
+deployment targets. Manual builds need a Linux builder with Go, curl and the
+target's C compiler; run `Payload_Type/poseidon/scripts/build-native.sh` with
+`linux amd64`, `linux arm64`, `darwin amd64`, or `darwin arm64`.
 Native archives use separate Rust-target subdirectories under
 `POSEIDON_BEACONCRYPT_NATIVE_TARGET` (default `.build/beaconcrypt-native-target`),
 so one target cannot reuse the other's cached library. Release filenames and
@@ -32,6 +35,20 @@ module version changes require a matching manifest entry. Verified cached archiv
 work offline. Rust and Cap'n Proto are not required. When replacing a source-built
 archive at the same module version, clear Go's build cache once (`go clean -cache`)
 so manual builds relink the downloaded library.
+
+The v0.6.0 Go binding names its macOS archive inside the Go module. For macOS
+builds, the preparation hook stages an unchanged copy of the module and the
+verified target library under `.build/beaconcrypt-go-module`, then selects it
+with a private Go modfile. This keeps both architectures separate without
+editing the shared Go module cache. Manual macOS cross-builds must likewise
+make the matching archive available at the binding's `target/release` path.
+The deployment minimum is passed directly to the linker, allowing the existing
+osxcross SDK to compile the C bindings while marking the final executable with
+the native library's required macOS version.
+
+Beaconcrypt includes generated EverCBOR code under Apache-2.0. Include the
+[Beaconcrypt notices](Payload_Type/poseidon/licenses/Beaconcrypt-NOTICE.txt)
+and accompanying license texts when redistributing Beaconcrypt-enabled agents.
 
 ## Poseidon's Icon
 

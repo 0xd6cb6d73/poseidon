@@ -1,0 +1,12 @@
+Beaconcrypt-enabled Poseidon agents link Beaconcrypt v0.6.0.
+Source: https://github.com/0xd6cb6d73/beaconcrypt/tree/v0.6.0
+
+Beaconcrypt and its handwritten serialization adapter are licensed under
+the BSD Zero Clause License. See Beaconcrypt-0BSD.txt.
+
+Beaconcrypt's beaconcrypt-parse/src/generated directory contains generated
+EverCDDL/EverCBOR parser sources licensed under Apache License, Version 2.0.
+See Beaconcrypt-EverCBOR-Apache-2.0.txt.
+
+Redistributions of Beaconcrypt-enabled agents must include the applicable
+license texts and attribution notices with the binary or accompanying materials.

@@ -3,7 +3,7 @@ module github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code
 go 1.24.0
 
 require (
-	github.com/0xd6cb6d73/beaconcrypt v0.5.2
+	github.com/0xd6cb6d73/beaconcrypt v0.6.0
 	github.com/creack/pty v1.1.24
 	github.com/djherbis/atime v1.1.0
 	github.com/golang/protobuf v1.5.4

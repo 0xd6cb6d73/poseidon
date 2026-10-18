@@ -31,6 +31,8 @@ fi
 case "$target_os/$target_arch" in
     linux/amd64) rust_target=x86_64-unknown-linux-gnu ;;
     linux/arm64) rust_target=aarch64-unknown-linux-gnu ;;
+    darwin/amd64) rust_target=x86_64-apple-darwin ;;
+    darwin/arm64) rust_target=aarch64-apple-darwin ;;
     *) printf 'Unsupported Beaconcrypt native target: %s/%s\n' "$target_os" "$target_arch" >&2; exit 1 ;;
 esac
 module_version=$(go list -m -f '{{.Version}}' github.com/0xd6cb6d73/beaconcrypt)

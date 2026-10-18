@@ -1,5 +1,5 @@
-github.com/0xd6cb6d73/beaconcrypt v0.5.2 h1:iEeqCtYG9JEcmJPBWfkyQwTs6W0vdSB84VBNrew88/E=
-github.com/0xd6cb6d73/beaconcrypt v0.5.2/go.mod h1:gXZ0UidMbOJpo9QyIrt8aIYAxya54vf2Gndp5Ef3k/c=
+github.com/0xd6cb6d73/beaconcrypt v0.6.0 h1:Y4VV0GjhEiXb/TN3WAvFmKhMBu9cQJojpQ6w/W7XJKY=
+github.com/0xd6cb6d73/beaconcrypt v0.6.0/go.mod h1:gXZ0UidMbOJpo9QyIrt8aIYAxya54vf2Gndp5Ef3k/c=
 github.com/creack/pty v1.1.24 h1:bJrF4RRfyJnbTJqzRLHzcGaZK1NeM5kTC9jGgovnR1s=
 github.com/creack/pty v1.1.24/go.mod h1:08sCNb52WyoAwi2QDyzUCTgcvVFhUzewun7wtTfvcwE=
 github.com/djherbis/atime v1.1.0 h1:rgwVbP/5by8BvvjBNrbh64Qz33idKT3pSnMSJsxhi0g=

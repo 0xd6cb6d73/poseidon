@@ -1,6 +1,7 @@
 package agentfunctions
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -66,8 +67,8 @@ func validateBeaconcryptBuild(message agentstructs.PayloadBuildMessage, config s
 	if err != nil {
 		return err
 	}
-	if message.SelectedOS != agentstructs.SUPPORTED_OS_LINUX || (architecture != "AMD_x64" && architecture != "ARM_x64") || mode != "default" || static || garble {
-		return fmt.Errorf("Beaconcrypt currently supports Linux AMD_x64 or ARM_x64 executables with static and garble disabled")
+	if (message.SelectedOS != agentstructs.SUPPORTED_OS_LINUX && message.SelectedOS != agentstructs.SUPPORTED_OS_MACOS) || (architecture != "AMD_x64" && architecture != "ARM_x64") || mode != "default" || static || garble {
+		return fmt.Errorf("Beaconcrypt currently supports Linux or macOS AMD_x64 or ARM_x64 executables with static and garble disabled")
 	}
 	if runtime.GOOS != "linux" || (runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
 		return fmt.Errorf("Beaconcrypt payloads currently require a Linux amd64 or arm64 payload builder")
@@ -86,19 +87,137 @@ func prepareBeaconcryptBuild(ctx context.Context, target BuildTarget) ([]string,
 	if err != nil {
 		return nil, fmt.Errorf("build Beaconcrypt native library: %v\n%s", err, nativeOutput)
 	}
-	return []string{"CGO_LDFLAGS=-L" + directory + " " + os.Getenv("CGO_LDFLAGS")}, nil
+	linkFlags := "-L" + directory + " " + os.Getenv("CGO_LDFLAGS")
+	if target.OS != "darwin" {
+		return []string{"CGO_LDFLAGS=" + linkFlags}, nil
+	}
+	// v0.6.0's macOS binding names an absolute archive inside the module.
+	// Stage a private copy with this target's library; never edit the shared cache.
+	moduleCommand := exec.CommandContext(ctx, "go", "mod", "download", "-json", "github.com/0xd6cb6d73/beaconcrypt")
+	moduleCommand.Dir = "./poseidon/agent_code"
+	moduleOutput, err := moduleCommand.Output()
+	if err != nil {
+		return nil, fmt.Errorf("locate Beaconcrypt Go module: %w", err)
+	}
+	var module struct{ Dir, Version string }
+	if err := json.Unmarshal(moduleOutput, &module); err != nil || module.Dir == "" || module.Version == "" {
+		return nil, fmt.Errorf("cannot locate Beaconcrypt Go module")
+	}
+	stageDirectory, err := filepath.Abs(filepath.Join(".build", "beaconcrypt-go-module", module.Version, target.Arch))
+	if err != nil {
+		return nil, err
+	}
+	modfile, err := beaconcryptDarwinModule(module.Dir, directory, stageDirectory)
+	if err != nil {
+		return nil, err
+	}
+	compiler, minimumOS := "o64-clang", "15.5"
+	if target.Arch == "arm64" {
+		compiler, minimumOS = "oa64-clang", "26.5"
+	}
+	// Pass the released library's deployment minimum directly to the linker.
+	// osxcross's compiler wrapper rejects newer C targets with its older SDK.
+	return []string{
+		"CGO_LDFLAGS=" + linkFlags + " -Wl,-macosx_version_min," + minimumOS,
+		"GOFLAGS=" + os.Getenv("GOFLAGS") + " " + strconv.Quote("-modfile="+modfile),
+		"CC=" + compiler,
+		"CXX=" + compiler + "++",
+	}, nil
+}
+
+func beaconcryptDarwinModule(moduleDirectory, nativeDirectory, stageDirectory string) (string, error) {
+	library, err := os.ReadFile(filepath.Join(nativeDirectory, "libbeaconcrypt.a"))
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(stageDirectory, 0700); err != nil {
+		return "", err
+	}
+	stagedModule := filepath.Join(stageDirectory, "module")
+	if _, err := os.Stat(filepath.Join(stagedModule, "go.mod")); os.IsNotExist(err) {
+		temporary, err := os.MkdirTemp(stageDirectory, ".module-*")
+		if err != nil {
+			return "", err
+		}
+		defer os.RemoveAll(temporary)
+		if err := os.CopyFS(temporary, os.DirFS(moduleDirectory)); err != nil {
+			return "", err
+		}
+		libraryDirectory := filepath.Join(temporary, "target", "release")
+		if err := os.MkdirAll(libraryDirectory, 0700); err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(filepath.Join(libraryDirectory, "libbeaconcrypt.a"), library, 0644); err != nil {
+			return "", err
+		}
+		if err := os.Rename(temporary, stagedModule); err != nil {
+			// Another build may already have published the same complete target.
+			if _, existing := os.Stat(filepath.Join(stagedModule, "go.mod")); existing != nil {
+				return "", err
+			}
+		}
+	} else if err != nil {
+		return "", err
+	}
+	// The source archive was checksum-verified by build-native.sh. Validate the
+	// staged copy as well, so a damaged cache cannot bypass the release pin.
+	stagedLibrary := filepath.Join(stagedModule, "target", "release", "libbeaconcrypt.a")
+	if cached, err := os.ReadFile(stagedLibrary); err != nil || !bytes.Equal(cached, library) {
+		if err := writeBeaconcryptModuleFile(stagedLibrary, library); err != nil {
+			return "", err
+		}
+	}
+	modfile := filepath.Join(stageDirectory, "agent.mod")
+	for _, extension := range []string{"mod", "sum"} {
+		contents, err := os.ReadFile(filepath.Join("poseidon", "agent_code", "go."+extension))
+		if err != nil {
+			return "", err
+		}
+		if extension == "mod" {
+			contents = append(contents, []byte("\nreplace github.com/0xd6cb6d73/beaconcrypt => "+strconv.Quote(stagedModule)+"\n")...)
+		}
+		if err := writeBeaconcryptModuleFile(filepath.Join(stageDirectory, "agent."+extension), contents); err != nil {
+			return "", err
+		}
+	}
+	return modfile, nil
+}
+
+// Atomic replacement keeps concurrent builds from observing partial files.
+func writeBeaconcryptModuleFile(path string, contents []byte) error {
+	file, err := os.CreateTemp(filepath.Dir(path), ".module-file-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	if _, err := file.Write(contents); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	return os.Rename(file.Name(), path)
 }
 
 func beaconcryptTargetTriple(target BuildTarget) (string, error) {
-	if target.OS == "linux" {
+	switch target.OS {
+	case "linux":
 		switch target.Arch {
 		case "amd64":
 			return "x86_64-unknown-linux-gnu", nil
 		case "arm64":
 			return "aarch64-unknown-linux-gnu", nil
 		}
+	case "darwin":
+		switch target.Arch {
+		case "amd64":
+			return "x86_64-apple-darwin", nil
+		case "arm64":
+			return "aarch64-apple-darwin", nil
+		}
 	}
-	return "", fmt.Errorf("unsupported Beaconcrypt native target %s/%s; expected linux/amd64 or linux/arm64", target.OS, target.Arch)
+	return "", fmt.Errorf("unsupported Beaconcrypt native target %s/%s; expected linux or darwin on amd64 or arm64", target.OS, target.Arch)
 }
 
 // Installed payload containers mount source over /Mythic. Keep their baked

@@ -6,11 +6,9 @@ COPY poseidon/agent_code/go.mod poseidon/agent_code/go.sum ./poseidon/agent_code
 COPY scripts ./scripts
 RUN ./scripts/build-native.sh linux amd64 && \
     ./scripts/build-native.sh linux arm64 && \
-    mkdir -p /out/x86_64-unknown-linux-gnu/release /out/aarch64-unknown-linux-gnu/release && \
-    cp .build/beaconcrypt-native-target/x86_64-unknown-linux-gnu/release/libbeaconcrypt.a /out/x86_64-unknown-linux-gnu/release/ && \
-    cp .build/beaconcrypt-native-target/x86_64-unknown-linux-gnu/module-version /out/x86_64-unknown-linux-gnu/ && \
-    cp .build/beaconcrypt-native-target/aarch64-unknown-linux-gnu/release/libbeaconcrypt.a /out/aarch64-unknown-linux-gnu/release/ && \
-    cp .build/beaconcrypt-native-target/aarch64-unknown-linux-gnu/module-version /out/aarch64-unknown-linux-gnu/
+    ./scripts/build-native.sh darwin amd64 && \
+    ./scripts/build-native.sh darwin arm64 && \
+    cp -a .build/beaconcrypt-native-target /out
 
 FROM itsafeaturemythic/mythic_go_macos:latest
 

@@ -1,4 +1,4 @@
-//go:build beaconcrypt && linux && (amd64 || arm64)
+//go:build beaconcrypt && (linux || darwin) && (amd64 || arm64)
 
 package cryptoprovider
 
