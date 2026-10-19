@@ -14,17 +14,22 @@ import (
 )
 
 func beaconcryptBuildBackend(message agentstructs.PayloadBuildMessage) (string, error) {
-	if _, present := message.BuildParameters.Parameters["beaconcrypt_backend"]; !present {
-		return "native", nil
+	for _, profile := range message.C2Profiles {
+		argument, err := decodeProviderCryptoArg(profile.Parameters["AESPSK"])
+		if err != nil {
+			return "", err
+		}
+		parts := strings.Split(argument.Value, ":")
+		if len(parts) == 3 && parts[0] == "provider" {
+			switch parts[2] {
+			case "Native":
+				return "native", nil
+			case "WASM":
+				return "wasm", nil
+			}
+		}
 	}
-	backend, err := message.BuildParameters.GetStringArg("beaconcrypt_backend")
-	if err != nil {
-		return "", err
-	}
-	if _, err := beaconcryptBackendTags(BuildTarget{BeaconcryptBackend: backend}); err != nil {
-		return "", err
-	}
-	return backend, nil
+	return "native", nil
 }
 
 func beaconcryptBackendTags(target BuildTarget) ([]string, error) {

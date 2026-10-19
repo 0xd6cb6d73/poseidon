@@ -34,7 +34,7 @@ func TestSyncPreservesSDKDefinitionAndCommands(t *testing.T) {
 			t.Fatal(err)
 		}
 		var schemes []string
-		if err := json.Unmarshal(definition["supported_crypto_schemes"], &schemes); err != nil || !reflect.DeepEqual(schemes, []string{"beaconcrypt"}) {
+		if err := json.Unmarshal(definition["supported_crypto_schemes"], &schemes); err != nil || !reflect.DeepEqual(schemes, []string{"Native", "WASM"}) {
 			t.Fatalf("crypto declaration = %v, %v", schemes, err)
 		}
 		delete(definition, "supported_crypto_schemes")

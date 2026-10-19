@@ -18,20 +18,28 @@ import (
 )
 
 func TestBeaconcryptBackendBuildSelection(t *testing.T) {
-	message := beaconcryptBuildFixture()
-	if backend, err := beaconcryptBuildBackend(message); err != nil || backend != "native" {
-		t.Fatalf("default backend=%q error=%v", backend, err)
-	}
-	for _, backend := range []string{"native", "wasm"} {
-		t.Run(backend, func(t *testing.T) {
+	for scheme, backend := range map[string]string{"Native": "native", "WASM": "wasm"} {
+		t.Run(scheme, func(t *testing.T) {
 			message := beaconcryptBuildFixture()
-			message.BuildParameters.Parameters["beaconcrypt_backend"] = backend
+			message.C2Profiles[0].Parameters["AESPSK"].(map[string]interface{})["value"] = "provider:mythic-beaconcrypt:" + scheme
+			// The crypto choice alone selects the backend, even if a stale
+			// payload definition carries the old build parameter.
+			message.BuildParameters.Parameters["beaconcrypt_backend"] = "automatic"
+			actual, err := beaconcryptBuildBackend(message)
+			if err != nil || actual != backend {
+				t.Fatalf("backend=%q error=%v", actual, err)
+			}
 			selections, err := validateProviderBuild(message)
 			if err != nil {
 				t.Fatal(err)
 			}
+			profile := map[string]interface{}{}
+			selections[0].configureProfile(profile)
+			if profile["crypto_provider"] != "beaconcrypt" {
+				t.Fatalf("backend alias leaked into runtime factory: %v", profile)
+			}
 			selections[0].Prepare = nil
-			tags, env, err := prepareProviderBuild(context.Background(), selections, 1, BuildTarget{OS: "darwin", Arch: "arm64", BeaconcryptBackend: backend})
+			tags, env, err := prepareProviderBuild(context.Background(), selections, 1, BuildTarget{OS: "darwin", Arch: "arm64", BeaconcryptBackend: actual})
 			expected := []string{"beaconcrypt"}
 			if backend == "wasm" {
 				expected = append(expected, "beaconcrypt_wazero")
@@ -40,14 +48,6 @@ func TestBeaconcryptBackendBuildSelection(t *testing.T) {
 				t.Fatalf("tags=%v env=%v error=%v", tags, env, err)
 			}
 		})
-	}
-	message.BuildParameters.Parameters["beaconcrypt_backend"] = "automatic"
-	if _, err := validateProviderBuild(message); err == nil {
-		t.Fatal("unsupported backend accepted")
-	}
-	message.C2Profiles[0].Parameters["AESPSK"] = map[string]interface{}{"value": "none"}
-	if _, err := validateProviderBuild(message); err != nil {
-		t.Fatalf("unused Beaconcrypt option affected legacy provider: %v", err)
 	}
 }
 

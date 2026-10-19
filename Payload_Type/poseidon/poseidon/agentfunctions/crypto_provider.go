@@ -24,6 +24,7 @@ type BuildTarget struct {
 // configuration, and prepare any dependencies before Go compiles the payload.
 type BuildProvider struct {
 	Scheme         string
+	ClientName     string
 	BuildTag       string
 	AdditionalTags func(BuildTarget) ([]string, error)
 	Validate       func(agentstructs.PayloadBuildMessage, string) error
@@ -36,7 +37,7 @@ var providerBuildTag = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.]*$`)
 
 // Registration is performed during package initialization, like C2 profiles.
 func registerBuildProvider(provider BuildProvider) {
-	if !providerIdentifier.MatchString(provider.Scheme) || !providerBuildTag.MatchString(provider.BuildTag) || provider.Validate == nil {
+	if !providerIdentifier.MatchString(provider.Scheme) || !providerBuildTag.MatchString(provider.BuildTag) || provider.Validate == nil || (provider.ClientName != "" && !providerIdentifier.MatchString(provider.ClientName)) {
 		panic("invalid crypto build provider registration")
 	}
 	if _, present := buildProviders[provider.Scheme]; present {
@@ -81,7 +82,11 @@ type providerBuildSelection struct {
 }
 
 func (selection *providerBuildSelection) configureProfile(config map[string]interface{}) {
-	config["crypto_provider"] = selection.Scheme
+	clientName := selection.ClientName
+	if clientName == "" {
+		clientName = selection.Scheme
+	}
+	config["crypto_provider"] = clientName
 	config["crypto_provider_config"] = selection.Config
 	config["AESPSK"] = ""
 	config["encrypted_exchange_check"] = false

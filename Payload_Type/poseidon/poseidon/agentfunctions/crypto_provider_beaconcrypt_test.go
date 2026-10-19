@@ -23,7 +23,7 @@ func beaconcryptBuildFixture() agentstructs.PayloadBuildMessage {
 			Name: "http",
 			Parameters: map[string]interface{}{
 				"AESPSK": map[string]interface{}{
-					"value":           "provider:mythic-beaconcrypt:beaconcrypt",
+					"value":           "provider:mythic-beaconcrypt:Native",
 					"enc_key":         nil,
 					"dec_key":         nil,
 					"provider_config": base64.StdEncoding.EncodeToString([]byte(`{ "version": 1, "server_kid": "0", "server_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }`)),
@@ -234,11 +234,11 @@ func TestBeaconcryptPreparationUsesTheRequestedTarget(t *testing.T) {
 
 func TestSupportedCryptoSchemesDeclaration(t *testing.T) {
 	declared := SupportedCryptoSchemes()
-	if len(declared) != 1 || declared[0] != "beaconcrypt" {
+	if len(declared) != 2 || declared[0] != "Native" || declared[1] != "WASM" {
 		t.Fatalf("unexpected supported crypto schemes: %v", declared)
 	}
 	declared[0] = "changed"
-	if SupportedCryptoSchemes()[0] != "beaconcrypt" {
+	if SupportedCryptoSchemes()[0] != "Native" {
 		t.Fatal("caller mutated the payload declaration")
 	}
 }

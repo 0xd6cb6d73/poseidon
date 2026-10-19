@@ -47,15 +47,6 @@ var payloadDefinition = agentstructs.PayloadType{
 	MythicEncryptsData:     true,
 	BuildParameters: []agentstructs.BuildParameter{
 		{
-			Name:          "beaconcrypt_backend",
-			Description:   "Beaconcrypt implementation: native release library or embedded WASM through wazero. Applies when Beaconcrypt is selected.",
-			Required:      false,
-			DefaultValue:  "native",
-			Choices:       []string{"native", "wasm"},
-			ParameterType: agentstructs.BUILD_PARAMETER_TYPE_CHOOSE_ONE,
-			UiPosition:    10,
-		},
-		{
 			Name:          "mode",
 			Description:   "Choose the build mode option. Select default for executables, c-shared for a .dylib or .so file, or c-archive for a .Zip containing C source code with an archive and header file",
 			Required:      false,
@@ -482,7 +473,7 @@ func build(ctx context.Context, payloadBuildMsg agentstructs.PayloadBuildMessage
 	for index, _ := range payloadBuildMsg.C2Profiles {
 		tags = append(tags, payloadBuildMsg.C2Profiles[index].Name)
 	}
-	backendChoice, _ := payloadBuildMsg.BuildParameters.GetStringArg("beaconcrypt_backend")
+	backendChoice, _ := beaconcryptBuildBackend(payloadBuildMsg)
 	providerTags, providerEnv, err := prepareProviderBuild(ctx, providerSelections, len(payloadBuildMsg.C2Profiles), BuildTarget{OS: targetOs, Arch: goarch, BeaconcryptBackend: backendChoice})
 	if err != nil {
 		payloadBuildResponse.Success = false

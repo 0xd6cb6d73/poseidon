@@ -21,8 +21,13 @@ Implementations register a session factory from a build-tagged file in
 
 Beaconcrypt supports Linux and macOS `AMD_x64` and `ARM_x64` executables
 (`mode=default`) with one HTTP or TCP profile and `static` and `garble` disabled.
-The `beaconcrypt_backend` build parameter selects `native` (the default) or
-`wasm`. Both choices use the same agent imports, constructors and protocol.
+Choose **Native (beaconcrypt)** or **WASM (beaconcrypt)** in the C2 profile's
+Encryption Type selector. Poseidon advertises the `Native` and `WASM` crypto
+schemes; that single selection chooses the backend automatically. Their API
+values are `provider:beaconcrypt:Native` and `provider:beaconcrypt:WASM`.
+Both choices use the same agent imports, constructors and protocol. The
+Beaconcrypt provider must advertise these aliases; the server uses the same
+native engine and campaign identity for both client implementations.
 
 The native backend uses SHA256-verified GitHub release libraries. Linux amd64
 and arm64 payload containers include libraries for all four targets. The v0.6.0

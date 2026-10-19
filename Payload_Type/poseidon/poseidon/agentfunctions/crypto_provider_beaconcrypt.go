@@ -16,13 +16,16 @@ import (
 )
 
 func init() {
-	registerBuildProvider(BuildProvider{
-		Scheme:         "beaconcrypt",
-		BuildTag:       "beaconcrypt",
-		AdditionalTags: beaconcryptBackendTags,
-		Validate:       validateBeaconcryptBuild,
-		Prepare:        prepareBeaconcryptBuild,
-	})
+	for _, scheme := range []string{"Native", "WASM"} {
+		registerBuildProvider(BuildProvider{
+			Scheme:         scheme,
+			ClientName:     "beaconcrypt",
+			BuildTag:       "beaconcrypt",
+			AdditionalTags: beaconcryptBackendTags,
+			Validate:       validateBeaconcryptBuild,
+			Prepare:        prepareBeaconcryptBuild,
+		})
+	}
 }
 
 func validateBeaconcryptBuild(message agentstructs.PayloadBuildMessage, config string) error {
