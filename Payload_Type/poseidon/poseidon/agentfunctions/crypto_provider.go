@@ -14,18 +14,20 @@ import (
 // BuildTarget uses Go target names, such as linux/arm64, independently of the
 // host running the payload builder.
 type BuildTarget struct {
-	OS   string
-	Arch string
+	OS                 string
+	Arch               string
+	BeaconcryptBackend string
 }
 
 // BuildProvider describes a client implementation available to payload builds.
 // Providers register from their own source files, validate their own opaque
 // configuration, and prepare any dependencies before Go compiles the payload.
 type BuildProvider struct {
-	Scheme   string
-	BuildTag string
-	Validate func(agentstructs.PayloadBuildMessage, string) error
-	Prepare  func(context.Context, BuildTarget) ([]string, error)
+	Scheme         string
+	BuildTag       string
+	AdditionalTags func(BuildTarget) ([]string, error)
+	Validate       func(agentstructs.PayloadBuildMessage, string) error
+	Prepare        func(context.Context, BuildTarget) ([]string, error)
 }
 
 var buildProviders = map[string]BuildProvider{}
@@ -136,6 +138,21 @@ func prepareProviderBuild(ctx context.Context, selections map[int]*providerBuild
 		if !tagged[selection.BuildTag] {
 			tags = append(tags, selection.BuildTag)
 			tagged[selection.BuildTag] = true
+		}
+		if selection.AdditionalTags != nil {
+			additional, err := selection.AdditionalTags(target)
+			if err != nil {
+				return nil, nil, err
+			}
+			for _, tag := range additional {
+				if !providerBuildTag.MatchString(tag) {
+					return nil, nil, fmt.Errorf("invalid crypto provider build tag %q", tag)
+				}
+				if !tagged[tag] {
+					tags = append(tags, tag)
+					tagged[tag] = true
+				}
+			}
 		}
 		if selection.Prepare == nil {
 			continue

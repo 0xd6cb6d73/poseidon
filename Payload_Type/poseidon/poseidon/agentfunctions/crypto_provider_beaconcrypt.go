@@ -17,14 +17,18 @@ import (
 
 func init() {
 	registerBuildProvider(BuildProvider{
-		Scheme:   "beaconcrypt",
-		BuildTag: "beaconcrypt",
-		Validate: validateBeaconcryptBuild,
-		Prepare:  prepareBeaconcryptBuild,
+		Scheme:         "beaconcrypt",
+		BuildTag:       "beaconcrypt",
+		AdditionalTags: beaconcryptBackendTags,
+		Validate:       validateBeaconcryptBuild,
+		Prepare:        prepareBeaconcryptBuild,
 	})
 }
 
 func validateBeaconcryptBuild(message agentstructs.PayloadBuildMessage, config string) error {
+	if _, err := beaconcryptBuildBackend(message); err != nil {
+		return err
+	}
 	if len(message.C2Profiles) != 1 {
 		return fmt.Errorf("Beaconcrypt currently requires exactly one direct HTTP or P2P TCP C2 profile")
 	}
@@ -77,6 +81,12 @@ func validateBeaconcryptBuild(message agentstructs.PayloadBuildMessage, config s
 }
 
 func prepareBeaconcryptBuild(ctx context.Context, target BuildTarget) ([]string, error) {
+	if _, err := beaconcryptBackendTags(target); err != nil {
+		return nil, err
+	}
+	if target.BeaconcryptBackend == "wasm" {
+		return prepareBeaconcryptWasmBuild(ctx, target)
+	}
 	directory, err := beaconcryptNativeLibraryDirectory(target)
 	if err != nil {
 		return nil, err

@@ -47,6 +47,15 @@ var payloadDefinition = agentstructs.PayloadType{
 	MythicEncryptsData:     true,
 	BuildParameters: []agentstructs.BuildParameter{
 		{
+			Name:          "beaconcrypt_backend",
+			Description:   "Beaconcrypt implementation: native release library or embedded WASM through wazero. Applies when Beaconcrypt is selected.",
+			Required:      false,
+			DefaultValue:  "native",
+			Choices:       []string{"native", "wasm"},
+			ParameterType: agentstructs.BUILD_PARAMETER_TYPE_CHOOSE_ONE,
+			UiPosition:    10,
+		},
+		{
 			Name:          "mode",
 			Description:   "Choose the build mode option. Select default for executables, c-shared for a .dylib or .so file, or c-archive for a .Zip containing C source code with an archive and header file",
 			Required:      false,
@@ -473,7 +482,8 @@ func build(ctx context.Context, payloadBuildMsg agentstructs.PayloadBuildMessage
 	for index, _ := range payloadBuildMsg.C2Profiles {
 		tags = append(tags, payloadBuildMsg.C2Profiles[index].Name)
 	}
-	providerTags, providerEnv, err := prepareProviderBuild(ctx, providerSelections, len(payloadBuildMsg.C2Profiles), BuildTarget{OS: targetOs, Arch: goarch})
+	backendChoice, _ := payloadBuildMsg.BuildParameters.GetStringArg("beaconcrypt_backend")
+	providerTags, providerEnv, err := prepareProviderBuild(ctx, providerSelections, len(payloadBuildMsg.C2Profiles), BuildTarget{OS: targetOs, Arch: goarch, BeaconcryptBackend: backendChoice})
 	if err != nil {
 		payloadBuildResponse.Success = false
 		payloadBuildResponse.BuildStdErr = err.Error()
@@ -491,8 +501,9 @@ func build(ctx context.Context, payloadBuildMsg agentstructs.PayloadBuildMessage
 	}
 	goCmd := fmt.Sprintf("-tags %s -buildmode %s -ldflags \"%s\"", strings.Join(tags, ","), mode, ldflags)
 	if targetOs == "darwin" {
-		command += "CC=o64-clang CXX=o64-clang++ "
-		commandEnv = append(commandEnv, "CC=o64-clang", "CXX=o64-clang++")
+		compiler, cxx := darwinBuildCompilers(goarch)
+		command += fmt.Sprintf("CC=%s CXX=%s ", compiler, cxx)
+		commandEnv = append(commandEnv, "CC="+compiler, "CXX="+cxx)
 	} else if targetOs == "windows" {
 		command += "CC=x86_64-w64-mingw32-gcc "
 		commandEnv = append(commandEnv, "CC=x86_64-w64-mingw32-gcc")
@@ -765,4 +776,12 @@ func Initialize() {
 	agentstructs.AllPayloadData.Get("poseidon").AddBuildFunction(build)
 	//agentstructs.AllPayloadData.Get("poseidon").AddOnNewCallbackFunction(onNewCallback)
 	agentstructs.AllPayloadData.Get("poseidon").AddIcon(filepath.Join(".", "poseidon", "agentfunctions", "poseidon.svg"))
+}
+
+// darwinBuildCompilers selects the osxcross driver for the requested target.
+func darwinBuildCompilers(arch string) (string, string) {
+	if arch == "arm64" {
+		return "oa64-clang", "oa64-clang++"
+	}
+	return "o64-clang", "o64-clang++"
 }

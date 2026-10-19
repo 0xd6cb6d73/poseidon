@@ -1,0 +1,3 @@
+# Beaconcrypt Go+WASM bundle pins: module-version release-asset sha256
+# No compatible WASM bundle is published yet. Add real release pins when available.
+# Local/CI builds use POSEIDON_BEACONCRYPT_WASM_BUNDLE and an explicit SHA256.

@@ -1,4 +1,6 @@
 __pycache__/
+/.build/
+/Payload_Type/poseidon/.build/
 *.py[cod]
 *.bin
 # Sphinx documentation
