@@ -6,6 +6,7 @@ on:
       - '.github/workflows/beaconcrypt-backends.yml'
       - 'Payload_Type/poseidon/go.mod'
       - 'Payload_Type/poseidon/go.sum'
+      - 'Payload_Type/poseidon/poseidon/agent_code/**'
       - 'Payload_Type/poseidon/poseidon/agentfunctions/**'
       - 'Payload_Type/poseidon/internal/**'
       - 'Payload_Type/poseidon/scripts/**'
@@ -16,6 +17,7 @@ on:
       - '.github/workflows/beaconcrypt-backends.yml'
       - 'Payload_Type/poseidon/go.mod'
       - 'Payload_Type/poseidon/go.sum'
+      - 'Payload_Type/poseidon/poseidon/agent_code/**'
       - 'Payload_Type/poseidon/poseidon/agentfunctions/**'
       - 'Payload_Type/poseidon/internal/**'
       - 'Payload_Type/poseidon/scripts/**'
@@ -46,3 +48,15 @@ jobs:
         run: go vet ./...
       - name: Test WASM staging with offline fixtures
         run: python3 scripts/test_stage_wasm.py
+      - name: Test the released Native backend
+        run: |
+          ./scripts/build-native.sh linux amd64
+          export CGO_LDFLAGS="-L$PWD/.build/beaconcrypt-native-target/x86_64-unknown-linux-gnu/release"
+          cd poseidon/agent_code
+          go test -race -count=1 -tags=beaconcrypt ./pkg/cryptoprovider
+          go build -tags=http,beaconcrypt -o ../../.build/poseidon-native-http .
+          go build -tags=tcp,beaconcrypt -o ../../.build/poseidon-native-tcp .
+      - name: Test the released WASM backend
+        env:
+          POSEIDON_TEST_WASM_BUILD: '1'
+        run: go test -v -count=1 -run '^TestBeaconcryptWasmReleaseBuild$' ./poseidon/agentfunctions

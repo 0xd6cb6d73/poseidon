@@ -262,8 +262,17 @@ replace example.com/remote => example.com/fork v1.0.0
 	}
 }
 
-// This opt-in test exercises the production preparation path and compiles the
-// unchanged agent. A config file can be emitted for container cross-builds.
+// These opt-in tests exercise production preparation and compile the unchanged
+// agent. A config file can be emitted for container cross-builds.
+func TestBeaconcryptWasmReleaseBuild(t *testing.T) {
+	if os.Getenv("POSEIDON_TEST_WASM_BUILD") != "1" {
+		t.Skip("set POSEIDON_TEST_WASM_BUILD=1 to build against the pinned release")
+	}
+	t.Setenv("POSEIDON_BEACONCRYPT_WASM_BUNDLE", "")
+	t.Setenv("POSEIDON_BEACONCRYPT_WASM_SHA256", "")
+	testBeaconcryptWasmAgentBuild(t)
+}
+
 func TestBeaconcryptWasmLocalBundleBuild(t *testing.T) {
 	if os.Getenv("POSEIDON_TEST_WASM_BUILD") != "1" {
 		t.Skip("set POSEIDON_TEST_WASM_BUILD=1 and provide a local bundle plus SHA256")
@@ -271,6 +280,11 @@ func TestBeaconcryptWasmLocalBundleBuild(t *testing.T) {
 	if os.Getenv("POSEIDON_BEACONCRYPT_WASM_BUNDLE") == "" || os.Getenv("POSEIDON_BEACONCRYPT_WASM_SHA256") == "" {
 		t.Fatal("explicit local bundle and SHA256 required")
 	}
+	testBeaconcryptWasmAgentBuild(t)
+}
+
+func testBeaconcryptWasmAgentBuild(t *testing.T) {
+	t.Helper()
 	project, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)

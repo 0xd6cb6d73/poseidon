@@ -1,5 +1,5 @@
-Beaconcrypt-enabled Poseidon agents link Beaconcrypt v0.6.0.
-Source: https://github.com/0xd6cb6d73/beaconcrypt/tree/v0.6.0
+Beaconcrypt-enabled Poseidon agents link Beaconcrypt v0.6.1.
+Source: https://github.com/0xd6cb6d73/beaconcrypt/tree/v0.6.1
 
 Beaconcrypt and its handwritten serialization adapter are licensed under
 the BSD Zero Clause License. See Beaconcrypt-0BSD.txt.

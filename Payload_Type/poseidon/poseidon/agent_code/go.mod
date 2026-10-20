@@ -1,9 +1,9 @@
 module github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code
 
-go 1.24.0
+go 1.25.0
 
 require (
-	github.com/0xd6cb6d73/beaconcrypt v0.6.0
+	github.com/0xd6cb6d73/beaconcrypt v0.6.1
 	github.com/creack/pty v1.1.24
 	github.com/djherbis/atime v1.1.0
 	github.com/golang/protobuf v1.5.4
@@ -16,7 +16,7 @@ require (
 	golang.org/x/crypto v0.46.0
 	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9
 	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.39.0
+	golang.org/x/sys v0.44.0
 	google.golang.org/protobuf v1.36.11
 	howett.net/plist v1.0.1
 )
@@ -27,6 +27,7 @@ require (
 	github.com/jezek/xgb v1.1.1 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
+	github.com/tetratelabs/wazero v1.12.0 // indirect
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect

@@ -104,7 +104,7 @@ func prepareBeaconcryptBuild(ctx context.Context, target BuildTarget) ([]string,
 	if target.OS != "darwin" {
 		return []string{"CGO_LDFLAGS=" + linkFlags}, nil
 	}
-	// v0.6.0's macOS binding names an absolute archive inside the module.
+	// Beaconcrypt's macOS binding names an absolute archive inside the module.
 	// Stage a private copy with this target's library; never edit the shared cache.
 	moduleCommand := exec.CommandContext(ctx, "go", "mod", "download", "-json", "github.com/0xd6cb6d73/beaconcrypt")
 	moduleCommand.Dir = "./poseidon/agent_code"

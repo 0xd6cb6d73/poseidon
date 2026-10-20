@@ -30,7 +30,7 @@ Beaconcrypt provider must advertise these aliases; the server uses the same
 native engine and campaign identity for both client implementations.
 
 The native backend uses SHA256-verified GitHub release libraries. Linux amd64
-and arm64 payload containers include libraries for all four targets. The v0.6.0
+and arm64 payload containers include libraries for all four targets. The v0.6.1
 macOS native archives require macOS 15.5 on Intel or macOS 26.5 on Apple Silicon;
 the builder sets matching deployment targets. Manual native builds need Go,
 curl and the target's C compiler; run
@@ -59,34 +59,39 @@ module cache under `POSEIDON_BEACONCRYPT_WASM_TARGET` (default
 `.build/beaconcrypt-wasm`). A separate modfile for each build selects that module.
 The agent's Go sources, `go.mod` and `go.sum` stay unchanged. Downloads happen
 only while building; the resulting agent needs no external WASM file or runtime
-download. Future released bundle pins belong in
-`scripts/beaconcrypt-wasm-releases.txt`. That file currently has no published
-pins, so select an explicit local development bundle to test this feature:
+download. The published v0.6.1 bundle is pinned in
+`scripts/beaconcrypt-wasm-releases.txt` and downloads automatically when a WASM
+build is requested. To override it with an explicitly verified local bundle:
 
 ```sh
-export POSEIDON_BEACONCRYPT_WASM_BUNDLE=/absolute/path/beaconcrypt-go-v0.6.0-wasm.tar.gz
+export POSEIDON_BEACONCRYPT_WASM_BUNDLE=/absolute/path/beaconcrypt-go-v0.6.1-wasm.tar.gz
 export POSEIDON_BEACONCRYPT_WASM_SHA256=<independently-verified-archive-sha256>
 ```
 
 The bundle's version must match the agent's required Beaconcrypt module version.
 A local path always requires its SHA256; it does not fall back to a download if
-the file is missing or invalid. The local development v0.6.0 bundle is distinct
-from the existing native-only v0.6.0 release and must not be published over it.
+the file is missing or invalid.
 
 Container builds can optionally bake a bundle with
 `BEACONCRYPT_WASM_BUNDLE_URL`, `BEACONCRYPT_WASM_BUNDLE_SHA256` and
 `BEACONCRYPT_WASM_BUNDLE_VERSION`. Supply all three build arguments together.
 The URL must use HTTPS and the archive is checked before it is included. With
-these arguments omitted, the native container behavior remains the default;
-a future pinned release can be downloaded when a WASM build is requested.
+these arguments omitted, the container downloads the pinned release when a
+WASM build is requested.
 Set local bundle environment variables in the payload container, not on the
 agent's target machine.
 
 Run `python3 scripts/test_stage_wasm.py` and
 `go test ./poseidon/agentfunctions` from `Payload_Type/poseidon` to check bundle
 validation and build configuration. To compile the unchanged HTTP agent and
-run its provider tests against a local bundle, set the two bundle variables
-above and run:
+run its provider tests against the pinned release, run:
+
+```sh
+POSEIDON_TEST_WASM_BUILD=1 go test -v -count=1 \
+  -run '^TestBeaconcryptWasmReleaseBuild$' ./poseidon/agentfunctions
+```
+
+To test a local bundle, set the two bundle variables above and run:
 
 ```sh
 POSEIDON_TEST_WASM_BUILD=1 go test -v -count=1 \
