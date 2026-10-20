@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	beaconcrypt "github.com/0xd6cb6d73/beaconcrypt"
 	"github.com/google/uuid"
 )
 
@@ -316,5 +317,33 @@ func TestPushStartupRetriesItsOwnFrameWithoutReplacingPendingOutput(t *testing.T
 	}
 	if err := s.SendPush(output, func([]byte) error { return nil }); err != nil || native.encrypts != 2 {
 		t.Fatalf("original output sender could not resume: encrypts=%d error=%v", native.encrypts, err)
+	}
+}
+
+func TestBeaconcryptFrameSizeLimitBeforeDecrypt(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		size      int
+		wantError bool
+	}{
+		{name: "maximum encoded CBOR", size: beaconcrypt.MaxMessageSize},
+		{name: "one byte over with same base64 length", size: beaconcrypt.MaxMessageSize + 1, wantError: true},
+		{name: "oversized base64 envelope", size: beaconcrypt.MaxMessageSize + 2, wantError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			session, client := readySession(t)
+			defer session.Close()
+			body, err := session.ReceivePush(encodeFrame(session.callback, make([]byte, test.size)))
+			if (err != nil) != test.wantError {
+				t.Fatalf("CBOR size %d: err=%v", test.size, err)
+			}
+			if test.wantError {
+				if client.decrypts != 0 || session.Failed() {
+					t.Fatal("oversized frame reached decryption or retired the session")
+				}
+			} else if len(body) != test.size || client.decrypts != 1 {
+				t.Fatalf("maximum frame was truncated or skipped: size=%d decrypts=%d", len(body), client.decrypts)
+			}
+		})
 	}
 }

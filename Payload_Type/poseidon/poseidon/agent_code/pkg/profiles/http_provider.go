@@ -18,6 +18,21 @@ import (
 	"github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/pkg/utils/structs"
 )
 
+// Include the route UUID and outer base64 envelope in the transport budget.
+// Providers remain responsible for their own decoded message limits.
+var maxProviderHTTPResponseBytes = base64.StdEncoding.EncodedLen((32 << 20) + 36)
+
+func readProviderHTTPResponse(body io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(body, int64(maxProviderHTTPResponseBytes)+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxProviderHTTPResponseBytes {
+		return nil, errors.New("HTTP cryptographic provider response exceeds transport limit")
+	}
+	return data, nil
+}
+
 func (c *C2HTTP) providerCheckIn() structs.CheckInMessageResponse {
 	for !c.ShouldStop {
 		if err := c.cryptoProvider.Register(c.providerRoundTrip); err != nil {
@@ -148,9 +163,9 @@ func (c *C2HTTP) providerRoundTrip(frame []byte) ([]byte, error) {
 			continue
 		}
 		// Bound HTTP response allocation independently of the crypto provider.
-		body, readErr := io.ReadAll(io.LimitReader(response.Body, (16<<20)+1))
+		body, readErr := readProviderHTTPResponse(response.Body)
 		_ = response.Body.Close()
-		if response.StatusCode == http.StatusOK && readErr == nil && len(body) <= 16<<20 {
+		if response.StatusCode == http.StatusOK && readErr == nil {
 			return body, nil
 		}
 		c.Sleep()

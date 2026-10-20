@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sync"
 
+	beaconcrypt "github.com/0xd6cb6d73/beaconcrypt"
 	"github.com/google/uuid"
 )
 
@@ -296,8 +297,14 @@ func encodeFrame(route string, body []byte) []byte {
 }
 
 func decodeFrame(frame []byte, route string) ([]byte, error) {
+	// The library limit covers the encoded CBOR message, before Mythic adds
+	// its UUID and base64 envelope. Bound allocation before decoding, then
+	// check the exact decoded size because base64 padding rounds up.
+	if len(frame) > base64.StdEncoding.EncodedLen(beaconcrypt.MaxMessageSize+36) {
+		return nil, errors.New("response exceeds Beaconcrypt message limit")
+	}
 	body, err := base64.StdEncoding.DecodeString(string(frame))
-	if err != nil || len(body) <= 36 || string(body[:36]) != route {
+	if err != nil || len(body) <= 36 || len(body)-36 > beaconcrypt.MaxMessageSize || string(body[:36]) != route {
 		return nil, errors.New("invalid response frame or route UUID")
 	}
 	return body[36:], nil
