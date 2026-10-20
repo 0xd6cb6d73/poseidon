@@ -1,0 +1,48 @@
+name: Test Beaconcrypt build backends
+
+on:
+  push:
+    paths:
+      - '.github/workflows/beaconcrypt-backends.yml'
+      - 'Payload_Type/poseidon/go.mod'
+      - 'Payload_Type/poseidon/go.sum'
+      - 'Payload_Type/poseidon/poseidon/agentfunctions/**'
+      - 'Payload_Type/poseidon/internal/**'
+      - 'Payload_Type/poseidon/scripts/**'
+      - 'Payload_Type/poseidon/Dockerfile'
+      - 'README.md'
+  pull_request:
+    paths:
+      - '.github/workflows/beaconcrypt-backends.yml'
+      - 'Payload_Type/poseidon/go.mod'
+      - 'Payload_Type/poseidon/go.sum'
+      - 'Payload_Type/poseidon/poseidon/agentfunctions/**'
+      - 'Payload_Type/poseidon/internal/**'
+      - 'Payload_Type/poseidon/scripts/**'
+      - 'Payload_Type/poseidon/Dockerfile'
+      - 'README.md'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Payload_Type/poseidon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: Payload_Type/poseidon/go.mod
+          cache-dependency-path: Payload_Type/poseidon/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Test controller and build configuration
+        run: go test -count=1 ./...
+      - name: Vet controller
+        run: go vet ./...
+      - name: Test WASM staging with offline fixtures
+        run: python3 scripts/test_stage_wasm.py
